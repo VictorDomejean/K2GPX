@@ -1,0 +1,223 @@
+:root {
+  --paper: #f1f4ee;      /* fond carte, vert de gris très pâle */
+  --sheet: #fbfcf9;      /* surface du formulaire */
+  --ink: #1d2a23;        /* texte, vert forêt sombre */
+  --muted: #5d6b62;      /* texte secondaire */
+  --contour: #d3dccf;    /* courbes de niveau */
+  --line: #c6d0c2;       /* bordures */
+  --blaze: #d1262c;      /* rouge balisage GR */
+  --blaze-ink: #ffffff;
+  --focus: #1f6fd1;
+  --radius-field: 10px;
+  --radius-sheet: 18px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #14201a;
+    --sheet: #1b2a22;
+    --ink: #e7eee8;
+    --muted: #9fb0a5;
+    --contour: #22342a;
+    --line: #304538;
+    --blaze: #ef4a4f;
+    --focus: #7db3ff;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--paper);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='480' viewBox='0 0 480 480'%3E%3Cg fill='none' stroke='%23000' stroke-opacity='.07' stroke-width='1.2'%3E%3Cpath d='M-20 110c60-40 120 30 190 0s110-70 170-40 110 50 160 20'/%3E%3Cpath d='M-20 150c70-35 125 35 195 5s105-60 165-35 115 45 160 15'/%3E%3Cpath d='M-20 190c75-30 130 40 200 10s100-50 160-30 120 40 160 10'/%3E%3Cpath d='M110 300c30-50 110-60 150-25s25 95-35 110-140-35-115-85z'/%3E%3Cpath d='M140 305c20-30 80-38 105-15s15 62-25 70-95-25-80-55z'/%3E%3Cpath d='M170 308c12-15 45-20 60-7s8 32-14 36-54-14-46-29z'/%3E%3Cpath d='M-20 420c80-30 150 20 230-5s140-40 290-10'/%3E%3C/g%3E%3C/svg%3E");
+  color: var(--ink);
+  font-family: "Archivo", system-ui, sans-serif;
+  font-variation-settings: "wdth" 100;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='480' viewBox='0 0 480 480'%3E%3Cg fill='none' stroke='%23fff' stroke-opacity='.05' stroke-width='1.2'%3E%3Cpath d='M-20 110c60-40 120 30 190 0s110-70 170-40 110 50 160 20'/%3E%3Cpath d='M-20 150c70-35 125 35 195 5s105-60 165-35 115 45 160 15'/%3E%3Cpath d='M-20 190c75-30 130 40 200 10s100-50 160-30 120 40 160 10'/%3E%3Cpath d='M110 300c30-50 110-60 150-25s25 95-35 110-140-35-115-85z'/%3E%3Cpath d='M140 305c20-30 80-38 105-15s15 62-25 70-95-25-80-55z'/%3E%3Cpath d='M170 308c12-15 45-20 60-7s8 32-14 36-54-14-46-29z'/%3E%3Cpath d='M-20 420c80-30 150 20 230-5s140-40 290-10'/%3E%3C/g%3E%3C/svg%3E");
+  }
+}
+
+.page {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 56px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* En-tête : la marque de balisage blanc et rouge est l'élément signature */
+.masthead { display: grid; gap: 12px; }
+
+.blaze {
+  display: grid;
+  gap: 4px;
+  width: 64px;
+  padding: 7px 9px;
+  border-radius: 6px 9px 5px 8px;
+  background: #4b5a4f; /* l'écorce ou le rocher sur lequel la marque est peinte */
+  transform: rotate(-2deg);
+}
+.blaze span { height: 11px; border-radius: 1px; }
+.blaze span:first-child { background: #fff; }
+.blaze span:last-child { background: #d1262c; }
+
+h1 {
+  margin: 0;
+  font-size: clamp(40px, 11vw, 60px);
+  line-height: 0.95;
+  font-weight: 800;
+  font-variation-settings: "wdth" 125;
+  letter-spacing: -0.01em;
+}
+
+.lede {
+  margin: 0;
+  max-width: 38ch;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+/* Formulaire */
+.paste {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet);
+  padding: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.paste-label { font-weight: 600; font-size: 15px; }
+
+.paste-row { display: flex; gap: 8px; }
+
+input[type="url"] {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-field);
+  padding: 13px 14px;
+}
+input[type="url"]::placeholder { color: var(--muted); opacity: .8; }
+input[type="url"]:focus { outline: none; border-color: var(--ink); }
+
+button, .secondary {
+  font: inherit;
+  font-weight: 650;
+  font-size: 16px;
+  border-radius: var(--radius-field);
+  padding: 13px 18px;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  border: 1.5px solid transparent;
+}
+
+.primary { background: var(--blaze); color: var(--blaze-ink); }
+.primary:hover { filter: brightness(1.07); }
+.primary:disabled { opacity: .55; cursor: progress; }
+
+.ghost, .secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}
+.ghost:hover, .secondary:hover { border-color: var(--ink); }
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.hint { margin: 0; font-size: 14px; color: var(--muted); }
+.hint strong { color: var(--ink); }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .9em;
+  background: var(--paper);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* Messages */
+.status { margin: -12px 4px -8px; min-height: 0; font-size: 15px; color: var(--muted); }
+.status.error { color: var(--blaze); font-weight: 600; }
+
+/* Résultat */
+.result {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet);
+  overflow: hidden;
+}
+
+.trace {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.trace .route-casing { fill: none; stroke: var(--sheet); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; }
+.trace .route { fill: none; stroke: var(--blaze); stroke-width: 3.5; stroke-linejoin: round; stroke-linecap: round; }
+.trace .start { fill: var(--ink); stroke: var(--sheet); stroke-width: 2.5; }
+.trace .end { fill: var(--sheet); stroke: var(--ink); stroke-width: 2.5; }
+
+.result-body { padding: 20px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+
+h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 750;
+  font-variation-settings: "wdth" 110;
+}
+
+.stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.stats div { display: grid; gap: 2px; }
+.stats dt { font-size: 13px; color: var(--muted); }
+.stats dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  font-variation-settings: "wdth" 90;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.foot { color: var(--muted); font-size: 13px; text-align: center; }
+.foot p { margin: 0 auto; max-width: 46ch; }
+
+/* Le seul mouvement : le tracé qui se dessine à l'arrivée du résultat */
+@media (prefers-reduced-motion: no-preference) {
+  .trace.draw .route { animation: draw 1.1s ease-out forwards; }
+}
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+@media (max-width: 420px) {
+  .page { padding-top: 36px; }
+  .actions { grid-template-columns: 1fr; }
+  .stats dd { font-size: 19px; }
+}

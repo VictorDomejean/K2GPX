@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Komoot vers GPX</title>
+  <meta name="description" content="Collez le lien d'une sortie Komoot publique et récupérez sa trace GPX pour Garmin, Strava ou votre GPS.">
+  <meta name="theme-color" content="#f1f4ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14201a" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <span class="blaze" aria-hidden="true"><span></span><span></span></span>
+      <h1>Komoot vers GPX</h1>
+      <p class="lede">Collez le lien d'une sortie Komoot, récupérez la trace pour Garmin, Strava ou votre GPS.</p>
+    </header>
+
+    <form class="paste" id="form" novalidate>
+      <label for="link" class="paste-label">Lien de la sortie</label>
+      <div class="paste-row">
+        <input id="link" name="link" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+               placeholder="https://www.komoot.com/fr-fr/tour/…" required>
+        <button type="button" class="ghost" id="pasteBtn" hidden>Coller</button>
+      </div>
+      <button type="submit" class="primary" id="submitBtn">Récupérer la trace</button>
+      <p class="hint">La sortie doit être <strong>publique</strong>, ou partagée avec un lien qui contient <code>share_token</code>.</p>
+    </form>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <section class="result" id="result" hidden aria-labelledby="tourName">
+      <svg class="trace" id="trace" viewBox="0 0 320 200" role="img" aria-label="Aperçu du tracé"></svg>
+      <div class="result-body">
+        <h2 id="tourName"></h2>
+        <dl class="stats">
+          <div><dt>Distance</dt><dd id="statDist"></dd></div>
+          <div><dt>Dénivelé +</dt><dd id="statUp"></dd></div>
+          <div><dt>Points</dt><dd id="statPts"></dd></div>
+        </dl>
+        <div class="actions">
+          <button type="button" class="primary" id="openBtn">Ouvrir le GPX</button>
+          <a class="secondary" id="downloadBtn" href="#" download>Télécharger le GPX</a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>Tout se passe dans votre navigateur&nbsp;: aucun compte, rien n'est stocké. Outil indépendant, sans lien avec Komoot.</p>
+    </footer>
+  </main>
+  <script src="app.js" defer></script>
+</body>
+</html>
