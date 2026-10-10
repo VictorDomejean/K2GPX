@@ -4,20 +4,52 @@
  * Komoot vers GPX — tout se passe dans le navigateur.
  *
  * 1. On lit le numéro de la sortie (et le share_token éventuel) dans le lien collé.
- * 2. On interroge l'API publique de Komoot pour obtenir le nom et les points.
+ * 2. On interroge l'API de Komoot pour obtenir le nom et les points.
  * 3. On fabrique le fichier GPX localement.
  *
- * Si le navigateur bloque l'appel direct (CORS), on passe par un relais public.
- * Vous pouvez modifier ou vider la liste RELAYS ci-dessous.
+ * Komoot n'autorise pas les appels venant d'autres sites (CORS) : la page passe
+ * donc par un relais. Le plus fiable est votre propre relais (voir worker/ et
+ * le README) : indiquez son adresse dans OWN_PROXY. Sinon, des relais publics
+ * gratuits sont essayés l'un après l'autre.
  */
 
 const API = "https://www.komoot.com/api/v007/tours/";
 
+// Adresse de votre relais, par exemple "https://k2gpx.<vous>.workers.dev" (laisser vide sinon)
+const OWN_PROXY = "";
+
+const enc = encodeURIComponent;
+
+/*
+ * Chaque relais renvoie { status, text } : le code HTTP de Komoot et le contenu.
+ * « fiable » = le relais transmet le vrai code de Komoot. Un refus venant d'un
+ * relais non fiable peut être le relais lui-même : on passe alors au suivant.
+ */
 const RELAYS = [
-  (url) => url, // appel direct
-  (url) => "https://corsproxy.io/?url=" + encodeURIComponent(url),
-  (url) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
-];
+  OWN_PROXY && {
+    name: "relais perso",
+    reliable: true,
+    get: (url) => plain(OWN_PROXY.replace(/\/+$/, "") + "/?url=" + enc(url)),
+  },
+  { name: "direct", reliable: true, get: (url) => plain(url) },
+  {
+    name: "allorigins",
+    reliable: true,
+    get: async (url) => {
+      const res = await fetch("https://api.allorigins.win/get?url=" + enc(url), { cache: "no-store" });
+      if (!res.ok) return { status: 0, text: "" };
+      const j = await res.json();
+      return { status: j?.status?.http_code ?? 0, text: j?.contents ?? "" };
+    },
+  },
+  { name: "codetabs", reliable: false, get: (url) => plain("https://api.codetabs.com/v1/proxy/?quest=" + enc(url)) },
+  { name: "corsproxy", reliable: false, get: (url) => plain("https://corsproxy.io/?url=" + enc(url)) },
+].filter(Boolean);
+
+async function plain(url) {
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  return { status: res.status, text: await res.text() };
+}
 
 let workingRelay = 0; // on mémorise le premier relais qui a fonctionné
 
@@ -69,39 +101,44 @@ function parseLink(text) {
 class UserError extends Error {}
 
 async function fetchJson(url) {
-  let lastError = null;
+  let refused = null; // code de refus transmis par un relais fiable
+
   for (let i = workingRelay; i < RELAYS.length; i++) {
-    let res;
+    const relay = RELAYS[i];
+    let r;
     try {
-      res = await fetch(RELAYS[i](url), { headers: { Accept: "application/json" } });
+      r = await relay.get(url);
     } catch (err) {
-      lastError = err; // bloqué par le navigateur ou relais injoignable
+      console.info(`[${relay.name}] injoignable ou bloqué`, err);
       continue;
     }
 
-    if (res.status === 401 || res.status === 403) {
-      throw new UserError(
-        "Cette sortie est privée. Rendez-la publique dans Komoot, ou utilisez son lien de partage complet (avec share_token)."
-      );
-    }
-    if (res.status === 404) {
-      throw new UserError("Sortie introuvable. Vérifiez le lien, elle a peut-être été supprimée.");
-    }
-    if (!res.ok) {
-      lastError = new Error("HTTP " + res.status);
-      continue;
+    if (r.status >= 200 && r.status < 300) {
+      try {
+        const data = JSON.parse(r.text);
+        workingRelay = i;
+        return data;
+      } catch {
+        console.info(`[${relay.name}] réponse illisible`);
+        continue;
+      }
     }
 
-    try {
-      const data = await res.json();
-      workingRelay = i;
-      return data;
-    } catch (err) {
-      lastError = err;
-    }
+    console.info(`[${relay.name}] HTTP ${r.status}`);
+    if (relay.reliable && [401, 403, 404].includes(r.status)) refused = r.status;
   }
-  console.warn(lastError);
-  throw new UserError("Impossible de joindre Komoot pour le moment. Réessayez dans quelques instants.");
+
+  if (refused === 404) {
+    throw new UserError("Sortie introuvable. Vérifiez le lien, elle a peut-être été supprimée.");
+  }
+  if (refused) {
+    throw new UserError(
+      "Komoot refuse l'accès à cette sortie. Vérifiez qu'elle est publique, ou collez son lien de partage complet (avec share_token)."
+    );
+  }
+  throw new UserError(
+    "Impossible de joindre Komoot : les relais publics ne répondent pas. Réessayez plus tard, ou configurez votre propre relais (voir le README)."
+  );
 }
 
 async function loadTour({ id, token }) {
@@ -202,7 +239,7 @@ function slugify(s) {
   return (
     s
       .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
