@@ -1,6 +1,8 @@
 /*
  * Worker Cloudflare de K2GPX.
  *
+ * - /api/tour/<id>/<share_token>  renvoie le nom, la distance, le dénivelé et
+ *               les points de la sortie en un seul appel (utilisé par la page).
  * - /api?url=…  relaie l'appel vers l'API des sorties Komoot et ajoute l'en-tête
  *               CORS qui permet à la page (GitHub Pages ou workers.dev) de lire
  *               la réponse. Ce n'est pas un relais ouvert : seule l'API des
@@ -59,30 +61,58 @@ async function proxy(request, target) {
   });
 }
 
+async function komoot(path, token) {
+  const qs = token ? "?share_token=" + encodeURIComponent(token) : "";
+  return fetch("https://www.komoot.com/api/v007/tours/" + path + qs, {
+    headers: {
+      Accept: "application/hal+json, application/json",
+      "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+      "User-Agent": "Mozilla/5.0 (compatible; K2GPX; +https://github.com/VictorDomejean/K2GPX)",
+    },
+    cf: { cacheTtl: 300, cacheEverything: true },
+  });
+}
+
+async function tour(request, id, token) {
+  const headers = { ...corsHeaders(request.headers.get("Origin") || ""), "Content-Type": "application/json; charset=utf-8" };
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
+
+  let infoRes, coordRes;
+  try {
+    [infoRes, coordRes] = await Promise.all([komoot(id, token), komoot(id + "/coordinates", token)]);
+  } catch (err) {
+    return new Response(JSON.stringify({ status: 502, message: "Komoot injoignable" }), { status: 502, headers });
+  }
+
+  // En cas de refus, on renvoie la réponse de Komoot telle quelle (403, 404…)
+  for (const r of [infoRes, coordRes]) {
+    if (!r.ok) return new Response(r.body, { status: r.status, headers });
+  }
+
+  const info = await infoRes.json();
+  const coords = await coordRes.json();
+  const body = {
+    id: info.id,
+    name: info.name,
+    sport: info.sport,
+    distance: info.distance,
+    elevation_up: info.elevation_up,
+    elevation_down: info.elevation_down,
+    items: (coords.items || []).map((p) => ({ lat: p.lat, lng: p.lng, alt: p.alt })),
+  };
+  return new Response(JSON.stringify(body), {
+    headers: { ...headers, "Cache-Control": "public, max-age=300" },
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const target = url.searchParams.get("url");
 
-    // Diagnostic : /debug?url=… renvoie toujours 200 avec le code et le début de la réponse de Komoot
-    // ou /debug/<id>/<share_token>
-    const dm = url.pathname.match(/^\/debug\/(\d+)(?:\/([\w-]+))?/);
-    if (dm || (url.pathname === "/debug" && target && TARGET.test(target))) {
-      const out = { requestUrl: request.url };
-      const qs = dm && dm[2] ? "?share_token=" + dm[2] : "";
-      const list = dm
-        ? [`https://www.komoot.com/api/v007/tours/${dm[1]}${qs}`, `https://www.komoot.com/api/v007/tours/${dm[1]}/coordinates${qs}`, `https://www.komoot.fr/api/v007/tours/${dm[1]}/coordinates${qs}`]
-        : [target, target.replace("komoot.com", "komoot.fr"), target.replace("komoot.com", "komoot.de")];
-      for (const t of list) {
-        try {
-          const r = await fetch(t, { headers: { Accept: "application/hal+json, application/json" }, redirect: "manual" });
-          out[t] = { status: r.status, location: r.headers.get("location"), server: r.headers.get("server"), body: (await r.text()).slice(0, 200) };
-        } catch (err) {
-          out[t] = { error: String(err) };
-        }
-      }
-      return new Response(JSON.stringify(out, null, 2), { headers: { "Content-Type": "application/json; charset=utf-8" } });
-    }
+    // /api/tour/<id>[/<share_token>] : nom, distance, dénivelé et points en un seul appel
+    const m = url.pathname.match(/^\/api\/tour\/(\d+)(?:\/([A-Za-z0-9_-]+))?\/?$/);
+    if (m) return tour(request, m[1], m[2]);
 
     if (url.pathname.startsWith("/api") || target) {
       return proxy(request, target || "");

@@ -8,9 +8,8 @@
  * 3. On fabrique le fichier GPX localement.
  *
  * Komoot n'autorise pas les appels venant d'autres sites (CORS) : la page passe
- * donc par un relais. Le plus fiable est votre propre relais (voir worker/ et
- * le README) : indiquez son adresse dans OWN_PROXY. Sinon, des relais publics
- * gratuits sont essayés l'un après l'autre.
+ * donc par le relais Cloudflare du dossier worker/ (OWN_PROXY). S'il ne répond
+ * pas, des relais publics gratuits sont essayés l'un après l'autre.
  */
 
 const API = "https://www.komoot.com/api/v007/tours/";
@@ -29,11 +28,6 @@ const enc = encodeURIComponent;
  * relais non fiable peut être le relais lui-même : on passe alors au suivant.
  */
 const RELAYS = [
-  OWN_PROXY && {
-    name: "relais perso",
-    reliable: true,
-    get: (url) => plain(OWN_PROXY.replace(/\/+$/, "") + "/api?url=" + enc(url)),
-  },
   { name: "direct", reliable: true, get: (url) => plain(url) },
   {
     name: "allorigins",
@@ -47,7 +41,7 @@ const RELAYS = [
   },
   { name: "codetabs", reliable: false, get: (url) => plain("https://api.codetabs.com/v1/proxy/?quest=" + enc(url)) },
   { name: "corsproxy", reliable: false, get: (url) => plain("https://corsproxy.io/?url=" + enc(url)) },
-].filter(Boolean);
+];
 
 async function plain(url) {
   const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -135,16 +129,41 @@ async function fetchJson(url) {
     throw new UserError("Sortie introuvable. Vérifiez le lien, elle a peut-être été supprimée.");
   }
   if (refused) {
-    throw new UserError(
-      "Komoot refuse l'accès à cette sortie. Vérifiez qu'elle est publique, ou collez son lien de partage complet (avec share_token)."
-    );
+    throw new UserError(NO_TOKEN_MSG);
   }
   throw new UserError(
-    "Impossible de joindre Komoot : les relais publics ne répondent pas. Réessayez plus tard, ou configurez votre propre relais (voir le README)."
+    "Impossible de joindre Komoot pour le moment. Réessayez dans quelques minutes."
   );
 }
 
+const NO_TOKEN_MSG =
+  "Komoot n'ouvre la trace qu'avec le lien de partage. Dans Komoot, touchez Partager puis Copier le lien, et collez ce lien complet (il contient share_token).";
+
+// Relais Cloudflare : nom, distance, dénivelé et points en un seul appel.
+// Renvoie null si le relais ne répond pas, pour passer aux relais publics.
+async function loadFromOwnProxy(id, token) {
+  let res;
+  try {
+    res = await fetch(`${OWN_PROXY}/api/tour/${id}${token ? "/" + encodeURIComponent(token) : ""}`, {
+      headers: { Accept: "application/json" },
+    });
+  } catch (err) {
+    console.info("[relais Cloudflare] injoignable", err);
+    return null;
+  }
+  if (res.ok) return res.json();
+  if (res.status === 404) throw new UserError("Sortie introuvable. Vérifiez le lien, elle a peut-être été supprimée.");
+  if (res.status === 401 || res.status === 403) {
+    throw new UserError(token ? "Komoot refuse l'accès à cette sortie : elle est peut-être redevenue privée, ou le lien de partage a expiré." : NO_TOKEN_MSG);
+  }
+  console.info("[relais Cloudflare] HTTP " + res.status);
+  return null;
+}
+
 async function loadTour({ id, token }) {
+  const fast = await loadFromOwnProxy(id, token);
+  if (fast) return toTour(id, fast, fast.items);
+
   const qs = new URLSearchParams({ _embedded: "coordinates" });
   if (token) qs.set("share_token", token);
 
@@ -156,6 +175,10 @@ async function loadTour({ id, token }) {
     const coords = await fetchJson(API + id + "/coordinates" + qs2);
     items = coords?.items;
   }
+  return toTour(id, tour, items);
+}
+
+function toTour(id, tour, items) {
   if (!Array.isArray(items) || items.length < 2) {
     throw new UserError("Cette sortie ne contient pas de tracé exploitable.");
   }

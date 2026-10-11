@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Komoot vers GPX</title>
-  <meta name="description" content="Collez le lien d'une sortie Komoot publique et récupérez sa trace GPX pour Garmin, Strava ou votre GPS.">
+  <meta name="description" content="Collez le lien de partage d'une sortie Komoot et récupérez sa trace GPX pour Garmin, Strava ou votre GPS.">
   <meta name="theme-color" content="#f1f4ee" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#14201a" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -29,7 +29,7 @@
         <button type="button" class="ghost" id="pasteBtn" hidden>Coller</button>
       </div>
       <button type="submit" class="primary" id="submitBtn">Récupérer la trace</button>
-      <p class="hint">La sortie doit être <strong>publique</strong>, ou partagée avec un lien qui contient <code>share_token</code>.</p>
+      <p class="hint">Utilisez le <strong>lien de partage</strong> de la sortie (Partager → Copier le lien dans Komoot) : il contient la clé <code>share_token</code> qui donne accès à la trace. La sortie doit être publique ou partagée avec vous.</p>
     </form>
 
     <p class="status" id="status" role="status" aria-live="polite"></p>
