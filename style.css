@@ -120,7 +120,7 @@ input[type="url"] {
 input[type="url"]::placeholder { color: var(--muted); opacity: .8; }
 input[type="url"]:focus { outline: none; border-color: var(--ink); }
 
-button, .secondary {
+button, .primary {
   font: inherit;
   font-weight: 650;
   font-size: 16px;
@@ -136,12 +136,12 @@ button, .secondary {
 .primary:hover { filter: brightness(1.07); }
 .primary:disabled { opacity: .55; cursor: progress; }
 
-.ghost, .secondary {
+.ghost {
   background: transparent;
   color: var(--ink);
   border-color: var(--line);
 }
-.ghost:hover, .secondary:hover { border-color: var(--ink); }
+.ghost:hover { border-color: var(--ink); }
 
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
@@ -205,7 +205,7 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.actions { display: grid; }
 
 .foot { color: var(--muted); font-size: 13px; text-align: center; }
 .foot p { margin: 0 auto; max-width: 46ch; }
@@ -218,6 +218,5 @@ h2 {
 
 @media (max-width: 420px) {
   .page { padding-top: 36px; }
-  .actions { grid-template-columns: 1fr; }
   .stats dd { font-size: 19px; }
 }

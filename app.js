@@ -1,54 +1,13 @@
 "use strict";
 
 /*
- * Komoot vers GPX — tout se passe dans le navigateur.
+ * K2GPX — Komoot vers GPX.
  *
- * 1. On lit le numéro de la sortie (et le share_token éventuel) dans le lien collé.
- * 2. On interroge l'API de Komoot pour obtenir le nom et les points.
- * 3. On fabrique le fichier GPX localement.
- *
- * Komoot n'autorise pas les appels venant d'autres sites (CORS) : la page passe
- * donc par le relais Cloudflare du dossier worker/ (OWN_PROXY). S'il ne répond
- * pas, des relais publics gratuits sont essayés l'un après l'autre.
+ * 1. On lit le numéro de la sortie et son share_token dans le lien collé.
+ * 2. Le Worker Cloudflare (worker/komoot-proxy.js), sur la même adresse que la
+ *    page, récupère le nom et les points auprès de Komoot.
+ * 3. Le fichier GPX est fabriqué dans le navigateur.
  */
-
-const API = "https://www.komoot.com/api/v007/tours/";
-
-// Adresse du relais Cloudflare (dossier worker/). Si la page est elle-même servie
-// par ce Worker, le relais est sur la même adresse.
-const OWN_PROXY = location.hostname.endsWith(".workers.dev")
-  ? location.origin
-  : "https://k2gpx.victor-domejean.workers.dev";
-
-const enc = encodeURIComponent;
-
-/*
- * Chaque relais renvoie { status, text } : le code HTTP de Komoot et le contenu.
- * « fiable » = le relais transmet le vrai code de Komoot. Un refus venant d'un
- * relais non fiable peut être le relais lui-même : on passe alors au suivant.
- */
-const RELAYS = [
-  { name: "direct", reliable: true, get: (url) => plain(url) },
-  {
-    name: "allorigins",
-    reliable: true,
-    get: async (url) => {
-      const res = await fetch("https://api.allorigins.win/get?url=" + enc(url), { cache: "no-store" });
-      if (!res.ok) return { status: 0, text: "" };
-      const j = await res.json();
-      return { status: j?.status?.http_code ?? 0, text: j?.contents ?? "" };
-    },
-  },
-  { name: "codetabs", reliable: false, get: (url) => plain("https://api.codetabs.com/v1/proxy/?quest=" + enc(url)) },
-  { name: "corsproxy", reliable: false, get: (url) => plain("https://corsproxy.io/?url=" + enc(url)) },
-];
-
-async function plain(url) {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  return { status: res.status, text: await res.text() };
-}
-
-let workingRelay = 0; // on mémorise le premier relais qui a fonctionné
 
 const $ = (id) => document.getElementById(id);
 const form = $("form");
@@ -57,7 +16,7 @@ const submitBtn = $("submitBtn");
 const statusEl = $("status");
 const result = $("result");
 
-let current = null; // { name, gpx, filename, blobUrl }
+let blobUrl = null;
 
 /* ---------- Lecture du lien ---------- */
 
@@ -97,85 +56,31 @@ function parseLink(text) {
 
 class UserError extends Error {}
 
-async function fetchJson(url) {
-  let refused = null; // code de refus transmis par un relais fiable
-
-  for (let i = workingRelay; i < RELAYS.length; i++) {
-    const relay = RELAYS[i];
-    let r;
-    try {
-      r = await relay.get(url);
-    } catch (err) {
-      console.info(`[${relay.name}] injoignable ou bloqué`, err);
-      continue;
-    }
-
-    if (r.status >= 200 && r.status < 300) {
-      try {
-        const data = JSON.parse(r.text);
-        workingRelay = i;
-        return data;
-      } catch {
-        console.info(`[${relay.name}] réponse illisible`);
-        continue;
-      }
-    }
-
-    console.info(`[${relay.name}] HTTP ${r.status}`);
-    if (relay.reliable && [401, 403, 404].includes(r.status)) refused = r.status;
-  }
-
-  if (refused === 404) {
-    throw new UserError("Sortie introuvable. Vérifiez le lien, elle a peut-être été supprimée.");
-  }
-  if (refused) {
-    throw new UserError(NO_TOKEN_MSG);
-  }
-  throw new UserError(
-    "Impossible de joindre Komoot pour le moment. Réessayez dans quelques minutes."
-  );
-}
-
 const NO_TOKEN_MSG =
   "Komoot n'ouvre la trace qu'avec le lien de partage. Dans Komoot, touchez Partager puis Copier le lien, et collez ce lien complet (il contient share_token).";
 
-// Relais Cloudflare : nom, distance, dénivelé et points en un seul appel.
-// Renvoie null si le relais ne répond pas, pour passer aux relais publics.
-async function loadFromOwnProxy(id, token) {
+async function loadTour({ id, token }) {
   let res;
   try {
-    res = await fetch(`${OWN_PROXY}/api/tour/${id}${token ? "/" + encodeURIComponent(token) : ""}`, {
+    res = await fetch(`/api/tour/${id}${token ? "/" + encodeURIComponent(token) : ""}`, {
       headers: { Accept: "application/json" },
     });
-  } catch (err) {
-    console.info("[relais Cloudflare] injoignable", err);
-    return null;
+  } catch {
+    throw new UserError("Pas de connexion. Vérifiez votre réseau et réessayez.");
   }
-  if (res.ok) return res.json();
+
   if (res.status === 404) throw new UserError("Sortie introuvable. Vérifiez le lien, elle a peut-être été supprimée.");
   if (res.status === 401 || res.status === 403) {
-    throw new UserError(token ? "Komoot refuse l'accès à cette sortie : elle est peut-être redevenue privée, ou le lien de partage a expiré." : NO_TOKEN_MSG);
+    throw new UserError(
+      token
+        ? "Komoot refuse l'accès à cette sortie : elle est peut-être redevenue privée, ou le lien de partage a expiré."
+        : NO_TOKEN_MSG
+    );
   }
-  console.info("[relais Cloudflare] HTTP " + res.status);
-  return null;
-}
+  if (!res.ok) throw new UserError("Impossible de joindre Komoot pour le moment. Réessayez dans quelques minutes.");
 
-async function loadTour({ id, token }) {
-  const fast = await loadFromOwnProxy(id, token);
-  if (fast) return toTour(id, fast, fast.items);
-
-  const qs = new URLSearchParams({ _embedded: "coordinates" });
-  if (token) qs.set("share_token", token);
-
-  const tour = await fetchJson(API + id + "?" + qs);
-
-  let items = tour?._embedded?.coordinates?.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    const qs2 = token ? "?share_token=" + encodeURIComponent(token) : "";
-    const coords = await fetchJson(API + id + "/coordinates" + qs2);
-    items = coords?.items;
-  }
-  return toTour(id, tour, items);
+  const data = await res.json();
+  return toTour(id, data, data.items);
 }
 
 function toTour(id, tour, items) {
@@ -239,7 +144,7 @@ function buildGpx(tour) {
     .join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Komoot vers GPX" xmlns="http://www.topografix.com/GPX/1/1"
+<gpx version="1.1" creator="K2GPX" xmlns="http://www.topografix.com/GPX/1/1"
      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
      xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
   <metadata>
@@ -328,9 +233,8 @@ function setStatus(text, isError = false) {
 function showResult(tour) {
   const gpx = buildGpx(tour);
   const filename = slugify(tour.name) + ".gpx";
-  if (current?.blobUrl) URL.revokeObjectURL(current.blobUrl);
-  const blob = new Blob([gpx], { type: "application/gpx+xml" });
-  current = { name: tour.name, gpx, filename, blobUrl: URL.createObjectURL(blob) };
+  if (blobUrl) URL.revokeObjectURL(blobUrl);
+  blobUrl = URL.createObjectURL(new Blob([gpx], { type: "application/gpx+xml" }));
 
   $("tourName").textContent = tour.name;
   $("statDist").textContent = fmtKm.format(tour.distance / 1000) + " km";
@@ -338,7 +242,7 @@ function showResult(tour) {
   $("statPts").textContent = fmtInt.format(tour.points.length);
 
   const dl = $("downloadBtn");
-  dl.href = current.blobUrl;
+  dl.href = blobUrl;
   dl.download = filename;
 
   result.hidden = false;
@@ -371,22 +275,6 @@ form.addEventListener("submit", async (e) => {
     submitBtn.disabled = false;
     submitBtn.textContent = "Récupérer la trace";
   }
-});
-
-// « Ouvrir le GPX » : sur mobile, ouvre le menu de partage pour choisir
-// Garmin Connect, Strava, OsmAnd… ; sinon, affiche le fichier dans un nouvel onglet.
-$("openBtn").addEventListener("click", async () => {
-  if (!current) return;
-  const file = new File([current.gpx], current.filename, { type: "application/gpx+xml" });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: current.name });
-      return;
-    } catch (err) {
-      if (err.name === "AbortError") return;
-    }
-  }
-  window.open(current.blobUrl, "_blank", "noopener");
 });
 
 // Bouton « Coller » quand le navigateur autorise la lecture du presse-papiers
