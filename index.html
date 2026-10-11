@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,7 +19,7 @@
     <header class="masthead">
       <span class="blaze" aria-hidden="true"><span></span><span></span></span>
       <h1>Komoot vers GPX</h1>
-      <p class="lede">Collez le lien d'une sortie Komoot, récupérez la trace pour Garmin, Strava ou votre GPS.</p>
+      <p class="lede">Collez le lien d'une sortie Komoot : le fichier GPX se télécharge, prêt pour Garmin, Strava ou votre GPS.</p>
     </header>
 
     <form class="paste" id="form" novalidate>
@@ -35,7 +36,7 @@
     <p class="status" id="status" role="status" aria-live="polite"></p>
 
     <section class="result" id="result" hidden aria-labelledby="tourName">
-      <svg class="trace" id="trace" viewBox="0 0 320 200" role="img" aria-label="Aperçu du tracé"></svg>
+      <div class="map" id="map" role="img" aria-label="Carte du tracé"></div>
       <div class="result-body">
         <h2 id="tourName"></h2>
         <dl class="stats">
@@ -44,7 +45,7 @@
           <div><dt>Points</dt><dd id="statPts"></dd></div>
         </dl>
         <div class="actions">
-          <a class="primary" id="downloadBtn" href="#" download>Télécharger le GPX</a>
+          <a class="primary" id="downloadBtn" href="#" download>Télécharger à nouveau</a>
         </div>
       </div>
     </section>
@@ -53,6 +54,7 @@
       <p>Aucun compte, rien n'est stocké. Outil indépendant, sans lien avec Komoot.</p>
     </footer>
   </main>
+  <script src="vendor/leaflet/leaflet.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

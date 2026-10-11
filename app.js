@@ -178,46 +178,37 @@ function slugify(s) {
   );
 }
 
-/* ---------- Aperçu du tracé ---------- */
+/* ---------- Carte OpenStreetMap ---------- */
 
-function drawTrace(points) {
-  const svg = $("trace");
-  const W = 320, H = 200, PAD = 18;
+let map = null;
+let routeLayer = null;
 
-  // Projection simple : longitude corrigée par le cosinus de la latitude
-  const midLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
-  const k = Math.cos((midLat * Math.PI) / 180);
-  const xy = points.map((p) => [p.lng * k, -p.lat]);
+function drawMap(points) {
+  if (!window.L) return; // carte indisponible : le GPX reste téléchargeable
+  if (!map) {
+    map = L.map("map", {
+      scrollWheelZoom: false, // ne pas capturer le défilement de la page
+      dragging: !L.Browser.mobile, // sur téléphone, un doigt fait défiler la page, deux doigts zooment
+      attributionControl: true,
+    });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+  }
+  if (routeLayer) routeLayer.remove();
 
-  const xs = xy.map((p) => p[0]), ys = xy.map((p) => p[1]);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const scale = Math.min((W - 2 * PAD) / (maxX - minX || 1), (H - 2 * PAD) / (maxY - minY || 1));
-  const offX = (W - (maxX - minX) * scale) / 2;
-  const offY = (H - (maxY - minY) * scale) / 2;
+  const latlngs = points.map((p) => [p.lat, p.lng]);
+  const red = getComputedStyle(document.documentElement).getPropertyValue("--blaze").trim() || "#d1262c";
+  routeLayer = L.layerGroup([
+    L.polyline(latlngs, { color: "#fff", weight: 7, opacity: 0.9 }),
+    L.polyline(latlngs, { color: red, weight: 4 }),
+    L.circleMarker(latlngs[latlngs.length - 1], { radius: 6, color: "#1d2a23", weight: 3, fillColor: "#fff", fillOpacity: 1 }),
+    L.circleMarker(latlngs[0], { radius: 6, color: "#fff", weight: 3, fillColor: "#1d2a23", fillOpacity: 1 }),
+  ]).addTo(map);
 
-  const step = Math.max(1, Math.floor(xy.length / 800));
-  const pts = xy.filter((_, i) => i % step === 0 || i === xy.length - 1)
-    .map(([x, y]) => [round(offX + (x - minX) * scale, 1), round(offY + (y - minY) * scale, 1)]);
-
-  const d = "M" + pts.map((p) => p.join(",")).join("L");
-  const [sx, sy] = pts[0];
-  const [ex, ey] = pts[pts.length - 1];
-  const loop = Math.hypot(ex - sx, ey - sy) < 4;
-
-  svg.classList.remove("draw");
-  svg.innerHTML = `
-    <path class="route-casing" d="${d}"/>
-    <path class="route" d="${d}"/>
-    ${loop ? "" : `<circle class="end" cx="${ex}" cy="${ey}" r="5"/>`}
-    <circle class="start" cx="${sx}" cy="${sy}" r="5.5"/>`;
-
-  const route = svg.querySelector(".route");
-  const len = route.getTotalLength();
-  route.style.strokeDasharray = len;
-  route.style.strokeDashoffset = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : len;
-  void svg.getBoundingClientRect();
-  svg.classList.add("draw");
+  map.invalidateSize();
+  map.fitBounds(L.latLngBounds(latlngs), { padding: [24, 24] });
 }
 
 /* ---------- Interface ---------- */
@@ -246,8 +237,11 @@ function showResult(tour) {
   dl.download = filename;
 
   result.hidden = false;
-  drawTrace(tour.points);
-  setStatus("");
+  drawMap(tour.points);
+  setStatus("Fichier téléchargé : ouvrez-le depuis vos téléchargements avec Garmin, Strava ou votre appli GPS.");
+
+  // Lancement automatique du téléchargement, dès que la trace est prête
+  dl.click();
   result.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
