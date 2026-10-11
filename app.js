@@ -15,8 +15,11 @@
 
 const API = "https://www.komoot.com/api/v007/tours/";
 
-// Adresse de votre relais, par exemple "https://k2gpx.<vous>.workers.dev" (laisser vide sinon)
-const OWN_PROXY = "";
+// Adresse du relais Cloudflare (dossier worker/). Si la page est elle-même servie
+// par ce Worker, le relais est sur la même adresse.
+const OWN_PROXY = location.hostname.endsWith(".workers.dev")
+  ? location.origin
+  : "https://k2gpx.victor-domejean.workers.dev";
 
 const enc = encodeURIComponent;
 
@@ -29,7 +32,7 @@ const RELAYS = [
   OWN_PROXY && {
     name: "relais perso",
     reliable: true,
-    get: (url) => plain(OWN_PROXY.replace(/\/+$/, "") + "/?url=" + enc(url)),
+    get: (url) => plain(OWN_PROXY.replace(/\/+$/, "") + "/api?url=" + enc(url)),
   },
   { name: "direct", reliable: true, get: (url) => plain(url) },
   {

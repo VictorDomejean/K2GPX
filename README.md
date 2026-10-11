@@ -29,17 +29,18 @@ La page est ensuite disponible à `https://victordomejean.github.io/K2GPX/`. On 
 - La page interroge `https://www.komoot.com/api/v007/tours/<id>` puis `…/coordinates`, l'interface que le site Komoot utilise lui-même.
 - Le fichier GPX (trace avec altitudes) est généré localement.
 
-Komoot n'autorise pas les appels venant d'autres sites (règles CORS) : la page passe donc par un relais. Elle essaie dans l'ordre votre relais perso s'il est configuré, l'appel direct, puis des relais publics gratuits (`allorigins`, `codetabs`, `corsproxy`). Le détail de chaque tentative s'affiche dans la console du navigateur.
+Komoot n'autorise pas les appels venant d'autres sites (règles CORS) : la page passe donc par un relais. Elle essaie dans l'ordre le relais Cloudflare du dossier `worker/`, l'appel direct, puis des relais publics gratuits (`allorigins`, `codetabs`, `corsproxy`). Le détail de chaque tentative s'affiche dans la console du navigateur.
 
-## Relais perso (recommandé)
+## Relais Cloudflare
 
-Les relais publics tombent régulièrement en panne ou limitent l'usage. Un relais à vous, sur Cloudflare Workers, est gratuit et prend cinq minutes :
+Les relais publics tombent régulièrement en panne. Le dossier `worker/` contient un relais à vous, hébergé gratuitement sur Cloudflare Workers. Le même Worker sert aussi le site : la page fonctionne donc à deux adresses.
 
-1. Créez un compte sur [dash.cloudflare.com](https://dash.cloudflare.com), puis **Workers & Pages → Create → Create Worker**. Nommez-le par exemple `k2gpx`, puis **Deploy**.
-2. **Edit code**, remplacez tout le contenu par celui de `worker/komoot-proxy.js`, puis **Deploy**.
-3. Copiez l'adresse du worker (`https://k2gpx.<vous>.workers.dev`) dans `OWN_PROXY`, en haut de `app.js`, puis poussez sur `main`.
+- `https://k2gpx.victor-domejean.workers.dev/` : le site et son relais sur la même adresse (le plus fiable).
+- `https://victordomejean.github.io/K2GPX/` : la page GitHub Pages, qui appelle le relais ci-dessus.
 
-Le relais n'accepte que les adresses de l'API des sorties Komoot, et seulement depuis les origines listées dans `ALLOWED_ORIGINS`.
+Déploiement : dans Cloudflare, **Workers & Pages → Create → Import a repository**, choisir ce dépôt. Le fichier `wrangler.jsonc` indique quoi publier ; chaque push sur `main` redéploie le Worker.
+
+Le relais (`/api?url=…`) n'accepte que les adresses de l'API des sorties Komoot. Les sites autorisés à l'appeler depuis une autre adresse sont listés dans `ALLOWED_ORIGINS`, en haut de `worker/komoot-proxy.js`.
 
 ## Limites
 
