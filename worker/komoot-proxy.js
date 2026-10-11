@@ -64,6 +64,20 @@ export default {
     const url = new URL(request.url);
     const target = url.searchParams.get("url");
 
+    // Diagnostic : /debug?url=… renvoie toujours 200 avec le code et le début de la réponse de Komoot
+    if (url.pathname === "/debug" && target && TARGET.test(target)) {
+      const out = {};
+      for (const t of [target, target.replace("komoot.com", "komoot.fr"), target.replace("komoot.com", "komoot.de")]) {
+        try {
+          const r = await fetch(t, { headers: { Accept: "application/hal+json, application/json" }, redirect: "manual" });
+          out[t] = { status: r.status, location: r.headers.get("location"), server: r.headers.get("server"), body: (await r.text()).slice(0, 300) };
+        } catch (err) {
+          out[t] = { error: String(err) };
+        }
+      }
+      return new Response(JSON.stringify(out, null, 2), { headers: { "Content-Type": "application/json; charset=utf-8" } });
+    }
+
     if (url.pathname.startsWith("/api") || target) {
       return proxy(request, target || "");
     }
