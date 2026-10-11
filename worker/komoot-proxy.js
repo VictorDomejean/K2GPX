@@ -65,12 +65,18 @@ export default {
     const target = url.searchParams.get("url");
 
     // Diagnostic : /debug?url=… renvoie toujours 200 avec le code et le début de la réponse de Komoot
-    if (url.pathname === "/debug" && target && TARGET.test(target)) {
-      const out = {};
-      for (const t of [target, target.replace("komoot.com", "komoot.fr"), target.replace("komoot.com", "komoot.de")]) {
+    // ou /debug/<id>/<share_token>
+    const dm = url.pathname.match(/^\/debug\/(\d+)(?:\/([\w-]+))?/);
+    if (dm || (url.pathname === "/debug" && target && TARGET.test(target))) {
+      const out = { requestUrl: request.url };
+      const qs = dm && dm[2] ? "?share_token=" + dm[2] : "";
+      const list = dm
+        ? [`https://www.komoot.com/api/v007/tours/${dm[1]}${qs}`, `https://www.komoot.com/api/v007/tours/${dm[1]}/coordinates${qs}`, `https://www.komoot.fr/api/v007/tours/${dm[1]}/coordinates${qs}`]
+        : [target, target.replace("komoot.com", "komoot.fr"), target.replace("komoot.com", "komoot.de")];
+      for (const t of list) {
         try {
           const r = await fetch(t, { headers: { Accept: "application/hal+json, application/json" }, redirect: "manual" });
-          out[t] = { status: r.status, location: r.headers.get("location"), server: r.headers.get("server"), body: (await r.text()).slice(0, 300) };
+          out[t] = { status: r.status, location: r.headers.get("location"), server: r.headers.get("server"), body: (await r.text()).slice(0, 200) };
         } catch (err) {
           out[t] = { error: String(err) };
         }
